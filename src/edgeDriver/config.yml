@@ -1,0 +1,5 @@
+name: 'RainMachine Connector'
+packageKey: 'RainMachineConnector'
+permissions:
+  lan: {}
+  discovery: {}

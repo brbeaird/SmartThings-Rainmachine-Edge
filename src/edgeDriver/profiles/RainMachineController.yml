@@ -1,0 +1,52 @@
+name: RainMachineController.v1
+components:
+- id: main
+  capabilities:
+  - id: refresh
+    version: 1
+  - id: towertalent27877.bridgeServerStatus
+    version: 1
+  - id: towertalent27877.bridgeServerAddress
+    version: 1
+  - id: towertalent27877.health
+    version: 1
+  - id: healthCheck
+    version: 1
+metadata:
+  deviceType: RainMachineController
+  mnmn: SmartThingsCommunity
+  ocfDeviceType: oic.d.wirelessrouter
+preferences:
+  - title: "RainMachine IP"
+    name: serverIp
+    description: "IP of RainMachine device"
+    required: false
+    preferenceType: string
+    definition:
+      stringType: text
+      default: ""
+  - title: "RainMachine Port"
+    name: serverPort
+    description: "Port of server (non-https, usually 8081)"
+    required: true
+    preferenceType: string
+    definition:
+      stringType: text
+      default: 8081""
+  - title: "RainMachine Password"
+    name: password
+    description: "Password used to login to RainMachine"
+    required: true
+    preferenceType: string
+    definition:
+      stringType: password
+      default: ""
+  - title: "Polling Internal"
+    name: pollingInterval
+    description: "Refresh interval (in seconds)"
+    required: true
+    preferenceType: integer
+    definition:
+      minimum: 5
+      maximum: 3600
+      default: 10
