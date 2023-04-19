@@ -11,7 +11,7 @@ local http_handler = {}
 -- Send LAN HTTP Request
 function http_handler.send_lan_command(url, method, path, body)
     local dest_url = url..'/'..path
-    log.trace('Making ' ..method ..' Call to ' ..dest_url)
+    --log.trace('Making ' ..method ..' Call to ' ..dest_url)
     local jsonBody = json.encode(body)
     local res_body = {}
 
@@ -19,7 +19,6 @@ function http_handler.send_lan_command(url, method, path, body)
     local resp, code
 
     if body ~= '' then
-      log.trace('Sending with body')
       resp, code= http.request({
         url=dest_url,
         method=method,
@@ -31,7 +30,6 @@ function http_handler.send_lan_command(url, method, path, body)
         sink=ltn12.sink.table(res_body)
       })
     else
-      log.trace('Sending without body')
       resp, code= http.request({
         url=dest_url,
         method=method,

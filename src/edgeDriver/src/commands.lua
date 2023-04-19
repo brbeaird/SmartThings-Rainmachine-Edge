@@ -79,8 +79,6 @@ function command_handler.refresh(driver, callingDevice, skipScan, firstAuth)
   end
 
   --Handle manual IP entry
-  log.info('serverIp: ' ..rainMachineController.preferences.serverIp)
-  log.info('serverPort: ' ..rainMachineController.preferences.serverPort)
   if rainMachineController.preferences.serverIp == '' or rainMachineController.preferences.serverPort == '' then
     log.info('Missing network info')
     return
@@ -138,7 +136,14 @@ function command_handler.refresh(driver, callingDevice, skipScan, firstAuth)
     local installedDeviceCount = 0
     for programNumber, program in pairs(programData.programs) do
       local programId = 'rainmachine-program-' ..program.uid
-      log.info('Got program: ' ..program.name)
+
+      local device_list = driver:get_devices() --Grab existing devices
+        for _, device in ipairs(device_list) do
+          if device.device_network_id == programId then
+            deviceExists = true
+            stDevice = device
+          end
+        end
 
       --If this device already exists in SmartThings, update the status
       if deviceExists then
@@ -190,6 +195,8 @@ function command_handler.refresh(driver, callingDevice, skipScan, firstAuth)
 
 
   end
+
+end
 
 
 ----------------
