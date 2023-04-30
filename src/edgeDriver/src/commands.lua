@@ -19,6 +19,7 @@ local healthCap = caps['towertalent27877.health']
 --Device type info
 local controllerId = 'RainMachineController'
 local programProfile = 'RainMachineProgram.v1'
+local zoneProfile = 'RainMachineZone.v1'
 
 local myqDoorFamilyName = 'garagedoor'
 local myqLampFamilyName = 'lamp'
@@ -62,6 +63,7 @@ function command_handler.refresh(driver, callingDevice, skipScan, firstAuth)
   end
 
   local rainMachineController
+  local device_list = driver:get_devices() --Grab existing devices
 
   --If called from controller, shortcut it
   if (callingDevice.device_network_id == controllerId) then
@@ -69,8 +71,6 @@ function command_handler.refresh(driver, callingDevice, skipScan, firstAuth)
 
   --Otherwise, look up the controller device
   else
-    local device_list = driver:get_devices() --Grab existing devices
-    local deviceExists = false
     for _, device in ipairs(device_list) do
       if device.device_network_id == controllerId then
         rainMachineController = driver.get_device_info(driver, device.id, true)
@@ -133,27 +133,29 @@ function command_handler.refresh(driver, callingDevice, skipScan, firstAuth)
   local success, code, res_body = httpUtil.send_lan_command(baseUrl, 'GET', programUrl, '')
   if success and code == 200 then
     local programData = json.decode(table.concat(res_body)..'}') --ltn12 bug drops last  bracket
-    local installedDeviceCount = 0
+    local stProgramDeviceExists = false
+    local stProgramDevice
+    local installedprogramCount = 0
+
     for programNumber, program in pairs(programData.programs) do
       local programId = 'rainmachine-program-' ..program.uid
 
-      local device_list = driver:get_devices() --Grab existing devices
-        for _, device in ipairs(device_list) do
-          if device.device_network_id == programId then
-            deviceExists = true
-            stDevice = device
-          end
+      for _, device in ipairs(device_list) do
+        if device.device_network_id == programId then
+          stProgramDeviceExists = true
+          stProgramDevice = device
         end
+      end
 
       --If this device already exists in SmartThings, update the status
-      if deviceExists then
-        installedDeviceCount = installedDeviceCount + 1
+      if stProgramDeviceExists then
+        installedprogramCount = installedprogramCount + 1
 
         --Set health online
-        stDevice:online()
-        local currentHealthStatus = stDevice:get_latest_state('main', "towertalent27877.health", "healthStatus", "unknown")
+        stProgramDevice:online()
+        local currentHealthStatus = stProgramDevice:get_latest_state('main', "towertalent27877.health", "healthStatus", "unknown")
         if currentHealthStatus ~= 'Online' then
-          stDevice:emit_event(healthCap.healthStatus('Online'))
+          stProgramDevice:emit_event(healthCap.healthStatus('Online'))
         end
 
         local programStatus
@@ -163,11 +165,11 @@ function command_handler.refresh(driver, callingDevice, skipScan, firstAuth)
           programStatus = 'on'
         end
 
-        local stState = stDevice:get_latest_state('main', caps.switch.switch.ID, "switch", "unknown")
+        local stState = stProgramDevice:get_latest_state('main', caps.switch.switch.ID, "switch", "unknown")
 
         if stState ~= programStatus then
-          log.trace('Switch ' ..stDevice.label .. ': setting status to ' ..stState)
-          stDevice:emit_event(caps.switch.switch(programStatus))
+          log.trace('Switch ' ..stProgramDevice.label .. ': setting status to ' ..stState)
+          stProgramDevice:emit_event(caps.switch.switch(programStatus))
         end
 
       --Create new devices
@@ -188,12 +190,85 @@ function command_handler.refresh(driver, callingDevice, skipScan, firstAuth)
           parent_device_id = rainMachineController.id
         }
         assert (driver:try_create_device(metadata), "failed to create device")
-        installedDeviceCount = installedDeviceCount + 1
+        installedprogramCount = installedprogramCount + 1
       end
-
     end
 
+  else
+    log.info('Resetting token.')
+    access_token = ''
+  end
 
+  --Get zones
+  local zoneUrl = 'api/4/zone?access_token=' ..access_token
+  local success, code, res_body = httpUtil.send_lan_command(baseUrl, 'GET', zoneUrl, '')
+  if success and code == 200 then
+    local zoneData = json.decode(table.concat(res_body)..'}') --ltn12 bug drops last  bracket
+    local stZoneDeviceExists = false
+    local stZoneDevice
+    local installedZoneCount = 0
+
+    for zoneNumber, zone in pairs(zoneData.zones) do
+      local zoneId = 'rainmachine-zone-' ..zone.uid
+
+      for _, device in ipairs(device_list) do
+        if device.device_network_id == zoneId then
+          stZoneDeviceExists = true
+          stZoneDevice = device
+        end
+      end
+
+      --If this device already exists in SmartThings, update the status
+      if stZoneDeviceExists then
+        installedZoneCount = installedZoneCount + 1
+
+        --Set health online
+        stZoneDevice:online()
+        local currentHealthStatus = stZoneDevice:get_latest_state('main', "towertalent27877.health", "healthStatus", "unknown")
+        if currentHealthStatus ~= 'Online' then
+          stZoneDevice:emit_event(healthCap.healthStatus('Online'))
+        end
+
+        local zoneStatus
+        if zone.state == 0 then
+          zoneStatus = 'off'
+        else
+          zoneStatus = 'on'
+        end
+
+        local stState = stZoneDevice:get_latest_state('main', caps.switch.switch.ID, "switch", "unknown")
+
+        --log.trace('stState ' ..stState .. ', zoneStatus ' ..zoneStatus)
+        if stState ~= zoneStatus then
+          log.trace('Switch ' ..stZoneDevice.label .. ': setting status to ' ..stState)
+          stZoneDevice:emit_event(caps.switch.switch(zoneStatus))
+        end
+
+      --Create new devices
+      else
+
+        local profileName
+
+        log.info('Ready to create ' ..zone.name ..' ('..zoneId ..') ')
+
+        local metadata = {
+          type = 'LAN',
+          device_network_id = zoneId,
+          label = zone.name ..' zone',
+          profile = zoneProfile,
+          manufacturer = 'rainmachine',
+          model = rainMachineController.model,
+          vendor_provided_label = 'rainmachinezone',
+          parent_device_id = rainMachineController.id
+        }
+        assert (driver:try_create_device(metadata), "failed to create device")
+        installedZoneCount = installedZoneCount + 1
+      end
+    end
+
+  else
+    log.info('Resetting token.')
+    access_token = ''
   end
 
 end
