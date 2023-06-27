@@ -4,10 +4,6 @@ components:
   capabilities:
   - id: refresh
     version: 1
-  - id: towertalent27877.bridgeServerStatus
-    version: 1
-  - id: towertalent27877.bridgeServerAddress
-    version: 1
   - id: towertalent27877.health
     version: 1
   - id: healthCheck
@@ -32,7 +28,7 @@ preferences:
     preferenceType: string
     definition:
       stringType: text
-      default: 8081""
+      default: "8081"
   - title: "RainMachine Password"
     name: password
     description: "Password used to login to RainMachine"

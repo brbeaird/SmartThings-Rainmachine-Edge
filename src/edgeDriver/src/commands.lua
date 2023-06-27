@@ -12,11 +12,18 @@ local socket = require('socket')
 local config = require('config')
 
 --Custom capabilities
-local myqStatusCap = caps['towertalent27877.myqstatus']
-local myqServerAddressCap = caps['towertalent27877.bridgeServerStatus']
+--local myqStatusCap = caps['towertalent27877.myqstatus']
+--local myqServerAddressCap = caps['towertalent27877.bridgeServerStatus']
+local zoneRuntimeCap = caps['towertalent27877.zoneruntime2']
+local zoneTimeRemaningCap = caps['towertalent27877.zonetimeremaining']
+
+local activeStatusCapName = 'towertalent27877.activestatus9'
+local activeStatusCap = caps[activeStatusCapName]
+
 local healthCap = caps['towertalent27877.health']
 
 --Device type info
+baseUrl = ''
 local controllerId = 'RainMachineController'
 local programProfile = 'RainMachineProgram.v1'
 local zoneProfile = 'RainMachineZone.v1'
@@ -97,11 +104,11 @@ function command_handler.refresh(driver, callingDevice, skipScan, firstAuth)
 --Handle blank auth info
   if rainMachineController.preferences.password == '' then
     local defaultAuthStatus = 'Awaiting credentials'
-    local currentStatus = rainMachineController:get_latest_state('main', "towertalent27877.myqstatus", "statusText", "unknown")
-    if currentStatus ~= defaultAuthStatus then
-      log.info('No credentials yet. Waiting.' ..currentStatus)
-      rainMachineController:emit_event(myqStatusCap.statusText(defaultAuthStatus))
-    end
+    -- local currentStatus = rainMachineController:get_latest_state('main', "towertalent27877.myqstatus", "statusText", "unknown")
+    -- if currentStatus ~= defaultAuthStatus then
+    --   log.info('No credentials yet. Waiting.' ..currentStatus)
+    --   rainMachineController:emit_event(myqStatusCap.statusText(defaultAuthStatus))
+    -- end
     consecutiveFailureCount = 100 --Force immediate display of errors once auth is entered
     return
   end
@@ -111,7 +118,7 @@ function command_handler.refresh(driver, callingDevice, skipScan, firstAuth)
   --   doBroadcast(driver, callingDevice, rainMachineController)
   --   return
   -- end
-  local baseUrl = 'http://' ..rainMachineController.preferences.serverIp ..':' ..rainMachineController.preferences.serverPort
+  baseUrl = 'http://' ..rainMachineController.preferences.serverIp ..':' ..rainMachineController.preferences.serverPort
 
   --Call out to RM device to get access token if needed
   if access_token == '' then
@@ -133,11 +140,12 @@ function command_handler.refresh(driver, callingDevice, skipScan, firstAuth)
   local success, code, res_body = httpUtil.send_lan_command(baseUrl, 'GET', programUrl, '')
   if success and code == 200 then
     local programData = json.decode(table.concat(res_body)..'}') --ltn12 bug drops last  bracket
-    local stProgramDeviceExists = false
-    local stProgramDevice
+
     local installedprogramCount = 0
 
     for programNumber, program in pairs(programData.programs) do
+      local stProgramDeviceExists = false
+      local stProgramDevice
       local programId = 'rainmachine-program-' ..program.uid
 
       for _, device in ipairs(device_list) do
@@ -172,6 +180,22 @@ function command_handler.refresh(driver, callingDevice, skipScan, firstAuth)
           stProgramDevice:emit_event(caps.switch.switch(programStatus))
         end
 
+        --Program active status
+        local programActiveStatus
+        if program.active == true then
+          programActiveStatus = 'enabled'
+        else
+          programActiveStatus = 'disabled'
+        end
+
+        local stProgramActiveStatus = stProgramDevice:get_latest_state('main', activeStatusCapName, "statustext", "unknown")
+
+        if stProgramActiveStatus ~= programActiveStatus then
+          log.trace('Program active ' ..stProgramDevice.label ..' ' ..stProgramActiveStatus ..programActiveStatus)
+          stProgramDevice:emit_event(activeStatusCap.statustext(programActiveStatus))
+        end
+
+
       --Create new devices
       else
 
@@ -182,7 +206,7 @@ function command_handler.refresh(driver, callingDevice, skipScan, firstAuth)
         local metadata = {
           type = 'LAN',
           device_network_id = programId,
-          label = program.name ..' program',
+          label = program.name,
           profile = programProfile,
           manufacturer = 'rainmachine',
           model = rainMachineController.model,
@@ -204,15 +228,18 @@ function command_handler.refresh(driver, callingDevice, skipScan, firstAuth)
   local success, code, res_body = httpUtil.send_lan_command(baseUrl, 'GET', zoneUrl, '')
   if success and code == 200 then
     local zoneData = json.decode(table.concat(res_body)..'}') --ltn12 bug drops last  bracket
-    local stZoneDeviceExists = false
+
     local stZoneDevice
     local installedZoneCount = 0
 
     for zoneNumber, zone in pairs(zoneData.zones) do
+      local stZoneDeviceExists = false
       local zoneId = 'rainmachine-zone-' ..zone.uid
+      --log.trace('Checking zone ' ..zoneId)
 
       for _, device in ipairs(device_list) do
         if device.device_network_id == zoneId then
+          --log.trace('Found existing zone ' ..zoneId)
           stZoneDeviceExists = true
           stZoneDevice = device
         end
@@ -227,6 +254,13 @@ function command_handler.refresh(driver, callingDevice, skipScan, firstAuth)
         local currentHealthStatus = stZoneDevice:get_latest_state('main', "towertalent27877.health", "healthStatus", "unknown")
         if currentHealthStatus ~= 'Online' then
           stZoneDevice:emit_event(healthCap.healthStatus('Online'))
+        end
+
+        --Set default runtime
+        local currentRuntime = stZoneDevice:get_latest_state('main', "towertalent27877.zoneruntime2", "runminutes", 0)
+        --log.trace('current runtime ' ..currentRuntime)
+        if currentRuntime == 0 then
+          stZoneDevice:emit_event(zoneRuntimeCap.runminutes(5))
         end
 
         local zoneStatus
@@ -244,6 +278,16 @@ function command_handler.refresh(driver, callingDevice, skipScan, firstAuth)
           stZoneDevice:emit_event(caps.switch.switch(zoneStatus))
         end
 
+        local zoneMinutesRemaining = math.ceil(zone.remaining/60)
+        local stRemaining = stZoneDevice:get_latest_state('main', "towertalent27877.zonetimeremaining", "minutesRemaining", 99)
+        --log.trace('zone remaining ' ..zoneMinutesRemaining ..'stremaining' ..stRemaining)
+        if zoneMinutesRemaining ~= stRemaining then
+          log.trace('Zone ' ..stZoneDevice.label .. ': setting remaining to ' ..zoneMinutesRemaining)
+          stZoneDevice:emit_event(zoneTimeRemaningCap.minutesRemaining(zoneMinutesRemaining))
+        end
+
+        local zoneTimeRemaningCap = caps['towertalent27877.zonetimeremaining']
+
       --Create new devices
       else
 
@@ -254,7 +298,7 @@ function command_handler.refresh(driver, callingDevice, skipScan, firstAuth)
         local metadata = {
           type = 'LAN',
           device_network_id = zoneId,
-          label = zone.name ..' zone',
+          label = zone.name,
           profile = zoneProfile,
           manufacturer = 'rainmachine',
           model = rainMachineController.model,
@@ -299,77 +343,141 @@ function command_handler.doorControl(driver, device, commandParam)
 end
 
 
---Switch--
-function command_handler.switchControl(driver, device, commandParam)
-  local command = commandParam.command
-  log.trace('Sending switch command: ' ..command)
+--Zone runtime--
+function command_handler.handle_zoneruntime(driver, device, command)
+  --log.debug (string.format('%s command received: %s', command.component, command.command))
+  --log.debug (command.args.value)
+  device:emit_event(zoneRuntimeCap.runminutes(command.args.value))
+  --return device:emit_event(caps.switch.switch.off())
+  -- local currentRuntime = stZoneDevice:get_latest_state('main', "towertalent27877.zoneruntime2", "runminutes", 0)
+  --       --log.trace('current runtime ' ..currentRuntime)
+  --       if currentRuntime == 0 then
+  --         stZoneDevice:emit_event(zoneRuntimeCap.runminutes(65))
+  --return
+end
 
-  --If this is a door, jump over to open/close
-  if (device.vendor_provided_label == doorDeviceProfile) then
-    if command == 'on' then
-      return command_handler.doorControl(driver, device, {command='open'})
-    else
-      return command_handler.doorControl(driver, device, {command='close'})
-    end
+--Program status--
+function command_handler.handle_programstatus(driver, device, command)
+  commandIsPending = true
+  log.debug (string.format('%s command received: %s', command.component, command.command))
+  log.debug (command.args.value)
+  --commandIsPending = false
+  --return device:emit_event(activeStatusCap.statustext(command.args.value))
+
+
+  local apiCommand
+  if command.args.value == 'enabled' then
+    apiCommand = true
+  else
+    apiCommand = false
   end
 
+  local deviceId = device.device_network_id
+  log.trace('DeviceId original: ' ..deviceId)
+
+  local requestBody= {active=apiCommand}
+
+  local deviceType = 'program'
+
+  local removeString = 'rainmachine%-' ..deviceType ..'%-'
+  log.trace('DeviceId removing string: ' ..removeString)
+  deviceId = deviceId:gsub(removeString, '')
+  log.trace('DeviceId final: ' ..deviceId)
+
+  local baseUrl = getBaseUrl(driver) ..'/api/4/'
+  local success = httpUtil.send_lan_command(baseUrl, 'POST', deviceType ..'/' ..deviceId ..'?access_token=' ..access_token, requestBody)
+
+  --Handle result
+  if success then
+    log.trace('Success! Setting program schedule to ' ..command.args.value)
+    commandIsPending = false
+    return device:emit_event(activeStatusCap.statustext(command.args.value))
+  end
+
+  --Handle bad result
+  log.error('no response from device')
+  --device:emit_event(myqStatusCap.statusText(command ..' command failed'))
+  commandIsPending = false
+  return false
+end
+
+
+
+--Switch--
+function command_handler.switchControl(driver, device, commandParam)
+  commandIsPending = true
+  local command = commandParam.command
+  log.trace('Sending switch command: ' ..command)
+  --return true
+  --commandIsPending = false
+  --return device:emit_event(caps.switch.switch.on())
+--end
+
+
+
   --Send it
-  local success = httpUtil.send_lan_command(device.model ..'/' ..device.device_network_id, 'POST', 'control', {command=command, auth=getLoginDetails(driver)})
+  --local programUrl = 'api/4/program?access_token=' ..access_token
+  --local success, code, res_body = httpUtil.send_lan_command(baseUrl, 'GET', programUrl, '')
+  --if success and code == 200 then
+
+  local apiCommand = ''
+  if command == 'on' then
+    apiCommand = 'start'
+  else
+    apiCommand = 'stop'
+  end
+
+  local deviceId = device.device_network_id
+  log.trace('DeviceId original: ' ..deviceId)
+
+  local requestBody
+
+  local deviceType
+  if string.find(device.device_network_id, "program") then
+    deviceType = 'program'
+  else
+    deviceType = 'zone'
+    local currentRuntimeMinutes = device:get_latest_state('main', "towertalent27877.zoneruntime2", "runMinutes", 65)
+    --local runTime = 60; --ToDO: Make dynamic
+    requestBody = {time=currentRuntimeMinutes}
+  end
+
+  local removeString = 'rainmachine%-' ..deviceType ..'%-'
+  --local removeString = 'rainmachine%-'
+  log.trace('DeviceId removing string: ' ..removeString)
+  deviceId = deviceId:gsub(removeString, '')
+  log.trace('DeviceId final: ' ..deviceId)
+
+
+  local baseUrl = getBaseUrl(driver) ..'/api/4/'
+  local success = httpUtil.send_lan_command(baseUrl, 'POST', deviceType ..'/' ..deviceId ..'/' ..apiCommand ..'?access_token=' ..access_token, requestBody)
 
   --Handle result
   if success then
     if command == 'on' then
+      log.trace('Success! Setting switch to on')
+      commandIsPending = false
       return device:emit_event(caps.switch.switch.on())
     else
+      log.trace('Success! Setting switch to off')
+      commandIsPending = false
       return device:emit_event(caps.switch.switch.off())
     end
   end
 
   --Handle bad result
   log.error('no response from device')
-  device:emit_event(myqStatusCap.statusText(command ..' command failed'))
+  --device:emit_event(myqStatusCap.statusText(command ..' command failed'))
+  commandIsPending = false
   return false
 end
 
---Lock--
-function command_handler.lockControl(driver, device, commandParam)
-  commandIsPending = true
-  local command = commandParam.command
-  log.trace('Sending lock command: ' ..command)
 
-  --Translate to door commands
-  local doorCommand
-  if (command == 'unlock') then
-    doorCommand = 'open'
-  else
-    doorCommand = 'close'
-  end
-
-  --Send it
-  local success = httpUtil.send_lan_command(device.model ..'/' ..device.device_network_id, 'POST', 'control', {command=doorCommand, auth=getLoginDetails(driver)})
-
-  --Handle result
-  if success then
-    commandIsPending = true
-    device:emit_event(myqStatusCap.statusText(command ..' in progress..'))
-    if command == 'unlock' then
-      return device:emit_event(caps.lock.lock('unlocked'))
-    else
-      return device:emit_event(caps.lock.lock('locked'))
-    end
-  end
-
-  --Handle bad result
-  commandIsPending = false
-  log.error('no response from device')
-  device:emit_event(myqStatusCap.statusText(command ..' command failed'))
-  return device:emit_event(caps.lock.lock("unknown"))
-end
 
 function command_handler.getControllerDevice(driver)
   local device_list = driver:get_devices() --Grab existing devices
   for _, device in ipairs(device_list) do
-    if device.device_network_id == 'rainMachineController' then
+    if device.device_network_id == controllerId then
       return driver.get_device_info(driver, device.id)
     end
   end
@@ -382,11 +490,25 @@ function getLoginDetails(driver)
   local device_list = driver:get_devices() --Grab existing devices
   local deviceExists = false
   for _, device in ipairs(device_list) do
-    if device.device_network_id == 'rainMachineController' then
+    if device.device_network_id == controllerId then
       rainMachineController = driver.get_device_info(driver, device.id)
     end
   end
   return {email=rainMachineController.preferences.email, password=rainMachineController.preferences.password}
+end
+
+function getBaseUrl(driver)
+
+  --Email/password are stored on the controller device. Find it.
+  local rainMachineController
+  local device_list = driver:get_devices() --Grab existing devices
+  local deviceExists = false
+  for _, device in ipairs(device_list) do
+    if device.device_network_id == controllerId then
+      rainMachineController = driver.get_device_info(driver, device.id)
+    end
+  end
+  return 'http://' ..rainMachineController.preferences.serverIp ..':' ..rainMachineController.preferences.serverPort
 end
 
 return command_handler

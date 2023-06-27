@@ -9,6 +9,10 @@ local commands = require('commands')
 local lux = require('luxure')
 local json = require('dkjson')
 
+--Custom capabilities
+local cap_zoneruntime = caps["towertalent27877.zoneruntime2"]
+local activeStatusCapName = 'towertalent27877.activestatus9'
+local activeStatusCap = caps[activeStatusCapName]
 
 -- Create Initial Device
 local function discovery_handler(driver, _, should_continue)
@@ -135,7 +139,15 @@ local driver =
         -- Refresh command handler
         [caps.refresh.ID] = {
           [caps.refresh.commands.refresh.NAME] = commands.refresh
-        }
+        },
+
+        [cap_zoneruntime.ID] = {
+          [cap_zoneruntime.commands.setRunminutes.NAME] = commands.handle_zoneruntime
+        },
+
+        [activeStatusCap.ID] = {
+          [activeStatusCap.commands.setStatusText.NAME] = commands.handle_programstatus
+        },
       }
     }
   )

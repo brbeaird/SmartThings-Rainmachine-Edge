@@ -2,12 +2,17 @@ name: RainMachineZone.v1
 metadata:
   ocfDeviceType: oic.d.watervalve
   mnmn: SmartThingsCommunity
+  vid: e3dd0ae4-dc5a-33aa-8d72-f4789bfa8b0d
 components:
 - id: main
   capabilities:
   - id: refresh
     version: 1
   - id: switch
+    version: 1
+  - id: towertalent27877.zoneruntime2
+    version: 1
+  - id: towertalent27877.zonetimeremaining
     version: 1
   - id: towertalent27877.health
     version: 1

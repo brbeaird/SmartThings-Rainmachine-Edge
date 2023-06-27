@@ -11,6 +11,8 @@ components:
     version: 1
   - id: towertalent27877.health
     version: 1
+  - id: towertalent27877.activestatus9
+    version: 1
   - id: healthCheck
     version: 1
   categories:
