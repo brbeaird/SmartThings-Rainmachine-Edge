@@ -1,0 +1,91 @@
+{
+    "dashboard": {
+        "states": [
+            {
+                "label": "Status: {{statustext.value}}"
+            }
+        ],
+        "actions": []
+    },
+    "detailView": [
+        {
+            "label": "{{i18n.label}}",
+            "displayType": "switch",
+            "switch": {
+                "command": {
+                    "name": "setStatusText",
+                    "on": "enabled",
+                    "off": "disabled"
+                },
+                "state": {
+                    "value": "statustext.value",
+                    "on": "enabled",
+                    "off": "disabled",
+                    "label": "{{statustext.value}}",
+                    "alternatives": [
+                        {
+                            "key": "enabled",
+                            "value": "Enabled",
+                            "type": "active"
+                        },
+                        {
+                            "key": "disabled",
+                            "value": "Disabled",
+                            "type": "inactive"
+                        }
+                    ]
+                }
+            }
+        }
+    ],
+    "automation": {
+        "conditions": [
+            {
+                "label": "Schedule Status",
+                "displayType": "list",
+                "list": {
+                    "alternatives": [
+                    {
+                        "key": "enabled",
+                        "value": "Enabled",
+                        "type": "active",
+                        "description": "enabled"
+                    },
+                    {
+                        "key": "disabled",
+                        "value": "Disabled",
+                        "type": "inactive",
+                        "description": "disabled"
+                    }
+                    ],
+                    "value": "statustext.value",
+                    "multiSelectable": false
+                }
+            }
+        ],
+        "actions": [
+            {
+                "label": "Schedule Status",
+                "displayType": "list",
+                "list": {
+                    "alternatives": [
+                    {
+                        "key": "enabled",
+                        "value": "Enabled",
+                        "type": "active",
+                        "description": "enabled"
+                    },
+                    {
+                        "key": "disabled",
+                        "value": "Disabled",
+                        "type": "inactive",
+                        "description": "disabled"
+                    }
+                ]
+                }
+            }
+        ]
+    },
+    "id": "towertalent27877.activestatus9",
+    "version": 1
+}

@@ -9,6 +9,9 @@ local commands = require('commands')
 local lux = require('luxure')
 local json = require('dkjson')
 
+local controllerName = 'RainMachine-Controller'
+local controllerId = 'RainMachineController'
+
 --Custom capabilities
 local cap_zoneruntime = caps["towertalent27877.zoneruntime2"]
 local activeStatusCapName = 'towertalent27877.activestatus9'
@@ -21,9 +24,9 @@ local function discovery_handler(driver, _, should_continue)
   local rmController = commands.getControllerDevice(driver)
   if rmController == nil then
     local MFG_NAME = 'SmartThings Community'
-    local MODEL = 'RainMachine-Controller'
-    local VEND_LABEL = 'RainMachine-Controller'
-    local ID = 'RainMachineController'
+    local MODEL = controllerName
+    local VEND_LABEL = controllerName
+    local ID = controllerId
     local PROFILE = 'RainMachineController.v1'
 
     log.info (string.format('Creating new controller device'))
@@ -50,7 +53,7 @@ local function device_init(driver, device)
   log.debug(device.label .. ": " .. device.device_network_id .. "> INITIALIZING")
 
   --Set up refresh schedule
-  if (device.device_network_id == 'RainMachineController') then
+  if (device.device_network_id == controllerId) then
     commands.refresh(driver, device)
     device.thread:call_on_schedule(
       device.preferences.pollingInterval,
@@ -72,7 +75,7 @@ end
 local function handler_infochanged (driver, device, event, args)
 
   log.debug ('Info changed handler invoked')
-  if (device.device_network_id == 'RainMachineController') then
+  if (device.device_network_id == controllerId) then
 
     --Cancel existing timer
     for timer in pairs(device.thread.timers) do
@@ -98,9 +101,7 @@ local function handler_infochanged (driver, device, event, args)
 
   --Go ahead and refresh
   commands.refresh(driver, device, 1, 1)
-
 end
-
 
 -- Called when device was deleted via mobile app
 local function device_removed(driver, device)
@@ -125,9 +126,11 @@ local driver =
         removed = device_removed
       },
 
-      --lifecycle_handlers = lifecycles,
       supported_capabilities = {
-        caps.doorControl
+        caps.refresh,
+        caps.switch,
+        cap_zoneruntime,
+        activeStatusCap
       },
       capability_handlers = {
         -- Switch command handler

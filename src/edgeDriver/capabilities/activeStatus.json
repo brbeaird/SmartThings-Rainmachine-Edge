@@ -1,0 +1,42 @@
+{
+    "version": 1,
+    "status": "proposed",
+    "name": "activestatus9",
+    "ephemeral": false,
+    "attributes": {
+        "statustext": {
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "value": {
+                        "type": "string",
+                        "enum": [
+                            "enabled",
+                            "disabled"
+                        ]
+                    }
+                },
+                "additionalProperties": false,
+                "required": [
+                    "value"
+                ]
+            },
+            "setter": "setStatusText",
+            "enumCommands": []
+        }
+    },
+    "commands": {
+        "setStatusText": {
+            "name": "setStatusText",
+            "arguments": [
+                {
+                    "name": "value",
+                    "optional": false,
+                    "schema": {
+                        "type": "string"
+                    }
+                }
+            ]
+        }
+    }
+}

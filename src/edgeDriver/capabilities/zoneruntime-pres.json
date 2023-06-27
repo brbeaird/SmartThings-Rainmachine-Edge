@@ -1,0 +1,39 @@
+{
+    "dashboard": {
+        "states": [
+            {
+                "label": "Zone runtime: {{runminutes.value}}"
+            }
+        ],
+        "actions": [],
+        "basicPlus": []
+    },
+    "detailView": [
+        {
+            "label": "Zone runtime minutes",
+            "displaytype": "slider",
+            "slider": {
+                "range": [
+                    1,
+                    100
+                ],
+                "step": 1,
+                "unit": "runminutes.unit",
+                "command": "setRunminutes",
+                "value": "runminutes.value"
+            }
+        }
+    ],
+    "actions": [
+        {
+            "displaytype": "numberField",
+            "runminutes": {
+                "command": {
+                    "name": "setRunminutes",
+                    "argumentType": "number"
+                }
+            }
+        }
+    ],
+    "id": "towertalent27877.zoneruntime"
+}

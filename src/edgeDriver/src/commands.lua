@@ -12,15 +12,14 @@ local socket = require('socket')
 local config = require('config')
 
 --Custom capabilities
---local myqStatusCap = caps['towertalent27877.myqstatus']
---local myqServerAddressCap = caps['towertalent27877.bridgeServerStatus']
 local zoneRuntimeCap = caps['towertalent27877.zoneruntime2']
 local zoneTimeRemaningCap = caps['towertalent27877.zonetimeremaining']
 
 local activeStatusCapName = 'towertalent27877.activestatus9'
 local activeStatusCap = caps[activeStatusCapName]
 
-local healthCap = caps['towertalent27877.health']
+local healthCapName = 'towertalent27877.health'
+local healthCap = caps[healthCapName]
 
 --Device type info
 baseUrl = ''
@@ -28,17 +27,12 @@ local controllerId = 'RainMachineController'
 local programProfile = 'RainMachineProgram.v1'
 local zoneProfile = 'RainMachineZone.v1'
 
-local myqDoorFamilyName = 'garagedoor'
-local myqLampFamilyName = 'lamp'
-local doorDeviceProfile = 'MyQDoor.v1'
-local lampDeviceProfile = 'MyQLamp.v1'
-local lockDeviceProfile = 'MyQLock.v1'
 
 --Prevent spamming bad auth info
 local authIsBad = false
 local access_token = ''
 
---Allow for occasional MyQ errors
+--Allow for occasional errors
 local consecutiveFailureCount = 0
 local consecutiveFailureThreshold = 20
 
@@ -91,39 +85,18 @@ function command_handler.refresh(driver, callingDevice, skipScan, firstAuth)
     return
   end
 
-  --Update controller server address
-  -- local currentControllerServerAddress = rainMachineController:get_latest_state('main', "towertalent27877.myqserveraddress", "serverAddress", "unknown")
-  -- local serverAddress = "Pending"
-  -- if rainMachineController.model ~= '' then
-  --   serverAddress = rainMachineController.model
-  -- end
-  -- if currentControllerServerAddress ~= serverAddress then
-  --   rainMachineController:emit_event(myqServerAddressCap.serverAddress(serverAddress))
-  -- end
-
 --Handle blank auth info
   if rainMachineController.preferences.password == '' then
     local defaultAuthStatus = 'Awaiting credentials'
-    -- local currentStatus = rainMachineController:get_latest_state('main', "towertalent27877.myqstatus", "statusText", "unknown")
-    -- if currentStatus ~= defaultAuthStatus then
-    --   log.info('No credentials yet. Waiting.' ..currentStatus)
-    --   rainMachineController:emit_event(myqStatusCap.statusText(defaultAuthStatus))
-    -- end
     consecutiveFailureCount = 100 --Force immediate display of errors once auth is entered
     return
   end
 
-  --Handle missing myq server URL - try and broadcast to auto-discover
-  -- if rainMachineController.model == '' then
-  --   doBroadcast(driver, callingDevice, rainMachineController)
-  --   return
-  -- end
   baseUrl = 'http://' ..rainMachineController.preferences.serverIp ..':' ..rainMachineController.preferences.serverPort
 
   --Call out to RM device to get access token if needed
   if access_token == '' then
 
-    --local loginInfo = {pwd=rainMachineController.preferences.password}
     local data = {pwd=rainMachineController.preferences.password}
     local success, code, res_body = httpUtil.send_lan_command(baseUrl, 'POST', 'api/4/auth/login', data)
 
@@ -161,7 +134,7 @@ function command_handler.refresh(driver, callingDevice, skipScan, firstAuth)
 
         --Set health online
         stProgramDevice:online()
-        local currentHealthStatus = stProgramDevice:get_latest_state('main', "towertalent27877.health", "healthStatus", "unknown")
+        local currentHealthStatus = stProgramDevice:get_latest_state('main', healthCapName, "healthStatus", "unknown")
         if currentHealthStatus ~= 'Online' then
           stProgramDevice:emit_event(healthCap.healthStatus('Online'))
         end
@@ -251,7 +224,7 @@ function command_handler.refresh(driver, callingDevice, skipScan, firstAuth)
 
         --Set health online
         stZoneDevice:online()
-        local currentHealthStatus = stZoneDevice:get_latest_state('main', "towertalent27877.health", "healthStatus", "unknown")
+        local currentHealthStatus = stZoneDevice:get_latest_state('main', healthCapName, "healthStatus", "unknown")
         if currentHealthStatus ~= 'Online' then
           stZoneDevice:emit_event(healthCap.healthStatus('Online'))
         end
@@ -321,49 +294,17 @@ end
 ----------------
 -- Device commands
 
---Door--
-function command_handler.doorControl(driver, device, commandParam)
-  commandIsPending = true
-  local command = commandParam.command
-  log.trace('Sending door command: ' ..command)
-  local success = httpUtil.send_lan_command(device.model ..'/' ..device.device_network_id, 'POST', 'control', {command=command, auth=getLoginDetails(driver)})
-
-  local pendingStatus
-  if command == 'open' then
-    pendingStatus = 'opening'
-  else
-    pendingStatus = 'closing'
-  end
-
-  if success then
-    return device:emit_event(caps.doorControl.door(pendingStatus))
-  end
-  log.error('no response from device')
-  return device:emit_event(myqStatusCap.statusText(command ..' command failed'))
-end
-
 
 --Zone runtime--
 function command_handler.handle_zoneruntime(driver, device, command)
-  --log.debug (string.format('%s command received: %s', command.component, command.command))
-  --log.debug (command.args.value)
   device:emit_event(zoneRuntimeCap.runminutes(command.args.value))
-  --return device:emit_event(caps.switch.switch.off())
-  -- local currentRuntime = stZoneDevice:get_latest_state('main', "towertalent27877.zoneruntime2", "runminutes", 0)
-  --       --log.trace('current runtime ' ..currentRuntime)
-  --       if currentRuntime == 0 then
-  --         stZoneDevice:emit_event(zoneRuntimeCap.runminutes(65))
-  --return
 end
 
---Program status--
+--Program schedule status--
 function command_handler.handle_programstatus(driver, device, command)
   commandIsPending = true
-  log.debug (string.format('%s command received: %s', command.component, command.command))
-  log.debug (command.args.value)
-  --commandIsPending = false
-  --return device:emit_event(activeStatusCap.statustext(command.args.value))
-
+  --log.debug (string.format('%s command received: %s', command.component, command.command))
+  --log.debug (command.args.value)
 
   local apiCommand
   if command.args.value == 'enabled' then
@@ -373,16 +314,11 @@ function command_handler.handle_programstatus(driver, device, command)
   end
 
   local deviceId = device.device_network_id
-  log.trace('DeviceId original: ' ..deviceId)
-
   local requestBody= {active=apiCommand}
-
   local deviceType = 'program'
 
   local removeString = 'rainmachine%-' ..deviceType ..'%-'
-  log.trace('DeviceId removing string: ' ..removeString)
   deviceId = deviceId:gsub(removeString, '')
-  log.trace('DeviceId final: ' ..deviceId)
 
   local baseUrl = getBaseUrl(driver) ..'/api/4/'
   local success = httpUtil.send_lan_command(baseUrl, 'POST', deviceType ..'/' ..deviceId ..'?access_token=' ..access_token, requestBody)
@@ -396,7 +332,6 @@ function command_handler.handle_programstatus(driver, device, command)
 
   --Handle bad result
   log.error('no response from device')
-  --device:emit_event(myqStatusCap.statusText(command ..' command failed'))
   commandIsPending = false
   return false
 end
@@ -408,17 +343,6 @@ function command_handler.switchControl(driver, device, commandParam)
   commandIsPending = true
   local command = commandParam.command
   log.trace('Sending switch command: ' ..command)
-  --return true
-  --commandIsPending = false
-  --return device:emit_event(caps.switch.switch.on())
---end
-
-
-
-  --Send it
-  --local programUrl = 'api/4/program?access_token=' ..access_token
-  --local success, code, res_body = httpUtil.send_lan_command(baseUrl, 'GET', programUrl, '')
-  --if success and code == 200 then
 
   local apiCommand = ''
   if command == 'on' then
@@ -428,26 +352,18 @@ function command_handler.switchControl(driver, device, commandParam)
   end
 
   local deviceId = device.device_network_id
-  log.trace('DeviceId original: ' ..deviceId)
-
   local requestBody
-
   local deviceType
   if string.find(device.device_network_id, "program") then
     deviceType = 'program'
   else
     deviceType = 'zone'
     local currentRuntimeMinutes = device:get_latest_state('main', "towertalent27877.zoneruntime2", "runMinutes", 65)
-    --local runTime = 60; --ToDO: Make dynamic
     requestBody = {time=currentRuntimeMinutes}
   end
 
   local removeString = 'rainmachine%-' ..deviceType ..'%-'
-  --local removeString = 'rainmachine%-'
-  log.trace('DeviceId removing string: ' ..removeString)
   deviceId = deviceId:gsub(removeString, '')
-  log.trace('DeviceId final: ' ..deviceId)
-
 
   local baseUrl = getBaseUrl(driver) ..'/api/4/'
   local success = httpUtil.send_lan_command(baseUrl, 'POST', deviceType ..'/' ..deviceId ..'/' ..apiCommand ..'?access_token=' ..access_token, requestBody)
@@ -467,11 +383,9 @@ function command_handler.switchControl(driver, device, commandParam)
 
   --Handle bad result
   log.error('no response from device')
-  --device:emit_event(myqStatusCap.statusText(command ..' command failed'))
   commandIsPending = false
   return false
 end
-
 
 
 function command_handler.getControllerDevice(driver)
@@ -499,7 +413,7 @@ end
 
 function getBaseUrl(driver)
 
-  --Email/password are stored on the controller device. Find it.
+  --IP/Port are stored on the controller device. Find it.
   local rainMachineController
   local device_list = driver:get_devices() --Grab existing devices
   local deviceExists = false
