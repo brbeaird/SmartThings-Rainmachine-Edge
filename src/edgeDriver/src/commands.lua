@@ -12,7 +12,9 @@ local socket = require('socket')
 local config = require('config')
 
 --Custom capabilities
-local zoneRuntimeCap = caps['towertalent27877.zoneruntime2']
+local zoneRuntimeCapName = 'towertalent27877.zoneruntime2'
+local zoneRuntimeCap = caps[zoneRuntimeCapName]
+local zoneRunTimeCapAtt = 'runminutes'
 local zoneTimeRemaningCap = caps['towertalent27877.zonetimeremaining']
 
 local activeStatusCapName = 'towertalent27877.activestatus9'
@@ -105,6 +107,14 @@ function command_handler.refresh(driver, callingDevice, skipScan, firstAuth)
       local tokenData = json.decode(table.concat(res_body)..'}') --ltn12 bug drops last  bracket
       log.info('Got token: ' ..tokenData.access_token)
       access_token = tokenData.access_token
+
+      --Set health online
+      rainMachineController:online()
+      local currentHealthStatus = rainMachineController:get_latest_state('main', healthCapName, "healthStatus", "unknown")
+      if currentHealthStatus ~= 'Online' then
+        rainMachineController:emit_event(healthCap.healthStatus('Online'))
+      end
+
     end
   end
 
@@ -297,7 +307,7 @@ end
 
 --Zone runtime--
 function command_handler.handle_zoneruntime(driver, device, command)
-  device:emit_event(zoneRuntimeCap.runminutes(command.args.value))
+  return device:emit_event(zoneRuntimeCap.runminutes(command.args.value))
 end
 
 --Program schedule status--
@@ -358,8 +368,8 @@ function command_handler.switchControl(driver, device, commandParam)
     deviceType = 'program'
   else
     deviceType = 'zone'
-    local currentRuntimeMinutes = device:get_latest_state('main', "towertalent27877.zoneruntime2", "runMinutes", 65)
-    requestBody = {time=currentRuntimeMinutes}
+    local currentRuntimeMinutes = device:get_latest_state('main', zoneRuntimeCapName, zoneRunTimeCapAtt, 5)
+    requestBody = {time=currentRuntimeMinutes*60}
   end
 
   local removeString = 'rainmachine%-' ..deviceType ..'%-'
